@@ -1,4 +1,3 @@
-
 #ifndef QUEUE_H
 #define QUEUE_H
 
@@ -6,6 +5,9 @@
 
 #define MAX_QUEUE_SIZE 10
 
+/*
+	WHAT: array-based priority queue
+*/
 struct queue_t {
 	struct pcb_t * proc[MAX_QUEUE_SIZE];
 	int size;
