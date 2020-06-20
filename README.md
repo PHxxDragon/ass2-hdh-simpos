@@ -17,3 +17,7 @@ Repository for assignment 2 of operating system course
 ## Contributions:
 
 Just smash the master branch ;)
+
+## Report:
+
+[Follow this link.](https://www.overleaf.com/4229117781jtwgsfkwjqdv)
