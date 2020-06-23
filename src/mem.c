@@ -98,7 +98,6 @@ static int translate(
 }
 
 addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
-	pthread_mutex_lock(&mem_lock);
 	addr_t ret_mem = 0;
 	/* TODO: Allocate [size] byte in the memory for the
 	 * process [proc] and save the address of the first
@@ -117,11 +116,11 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 	 * to know whether this page has been used by a process.
 	 * For virtual memory space, check bp (break pointer).
 	 * */
-
 	//todo
 	int physical_indexs[num_pages];
 	if (proc->bp + num_pages * PAGE_SIZE <= RAM_SIZE){		
 		int i, count = 0;		
+		pthread_mutex_lock(&mem_lock);
 		for( i = 0; i < NUM_PAGES; i++){
 		  	if (_mem_stat[i].proc == 0) {
 				physical_indexs[count] = i;
@@ -133,6 +132,7 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 				break;
 			}
 		}
+		pthread_mutex_unlock(&mem_lock);
 	}
 	//end-todo
 
@@ -148,12 +148,16 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 		 * 	  valid. */
 		if(ret_mem == PAGE_SIZE) proc->seg_table->size = 0;
 		int j, k;
-		for( j = 0; j < num_pages; j++){
+		pthread_mutex_lock(&mem_lock);
+		for (j = 0; j < num_pages; j++){
 			_mem_stat[physical_indexs[j]].proc = proc->pid;
 			_mem_stat[physical_indexs[j]].index = j;
 			if(j == num_pages - 1) 
-	   		      _mem_stat[physical_indexs[j]].next = -1; 				
+				_mem_stat[physical_indexs[j]].next = -1; 				
 			else  _mem_stat[physical_indexs[j]].next = physical_indexs[j + 1];
+		}
+		pthread_mutex_unlock(&mem_lock);
+		for( j = 0; j < num_pages; j++){
 			/* The first layer index */
 			addr_t first_lv = get_first_lv(ret_mem + j * PAGE_SIZE);
 			/* The second layer index */
@@ -176,11 +180,9 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 			   proc->seg_table->table[find].pages->table[count].p_index = physical_indexs[j];		
 			   count++;			
 			proc->seg_table->table[find].pages->size = count;
-			
 		}
 		
 	}
-	pthread_mutex_unlock(&mem_lock);
 	return ret_mem;
 }
 
@@ -193,22 +195,22 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 	 * 	  the process [proc].
 	 * 	- Remember to use lock to protect the memory from other
 	 * 	  processes.  */
-	pthread_mutex_lock(&mem_lock);
+	
 	addr_t physical_addr;
 	if (!translate(address, &physical_addr, proc)) {	
-		pthread_mutex_unlock(&mem_lock);	
 		return -1;
 	}
 	
 	int find = physical_addr >> 10;
 	int i, j, indexs_to_free = 0;	
-	
+
+	pthread_mutex_lock(&mem_lock);
 	while(find != -1){
 		_mem_stat[find].proc = 0;
 		find = _mem_stat[find].next;
 		indexs_to_free++;			
 	}
-	
+	pthread_mutex_unlock(&mem_lock);
 	/* The first layer index */
 	addr_t first_lv = get_first_lv(address);
 	/* The second layer index */
@@ -256,7 +258,6 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 			break;
 	    }
 	}
-	pthread_mutex_unlock(&mem_lock);
 	return 0;
 }
 
