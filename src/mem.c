@@ -120,14 +120,21 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 	 * */
 
 	//todo
-	int page_index[num_pages];
-	if (proc->bp + size <= RAM_SIZE){		
+	int physical_indexs[num_pages];
+	if (proc->bp + num_pages * PAGE_SIZE <= RAM_SIZE){		
 		int i, count = 0;		
 		for( i = 0; i < NUM_PAGES; i++){
-		  if (_mem_stat[i].proc == 0) {page_index[count] = i; count++;}
-		  if (count >= num_pages)     {mem_avail = 1; break;}
-		} 	
-	}	
+		  	if (_mem_stat[i].proc == 0) {
+				physical_indexs[count] = i;
+				count++;
+			}
+
+		  	if (count >= num_pages) {
+				mem_avail = 1;
+				break;
+			}
+		}
+	}
 	//end-todo
 
 	if (mem_avail) {
@@ -143,11 +150,11 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 		if(ret_mem == PAGE_SIZE) proc->seg_table->size = 0;
 		int j, k, find = -1;
 		for( j = 0; j < num_pages; j++){
-			_mem_stat[page_index[j]].proc = proc->pid;
-			_mem_stat[page_index[j]].index = j;
+			_mem_stat[physical_indexs[j]].proc = proc->pid;
+			_mem_stat[physical_indexs[j]].index = j;
 			if(j == num_pages - 1) 
-	   		      _mem_stat[page_index[j]].next = -1; 				
-			else  _mem_stat[page_index[j]].next = page_index[j + 1];
+	   		      _mem_stat[physical_indexs[j]].next = -1; 				
+			else  _mem_stat[physical_indexs[j]].next = physical_indexs[j + 1];
 			/* The first layer index */
 			addr_t first_lv = get_first_lv(ret_mem + j * PAGE_SIZE);
 			/* The second layer index */
@@ -167,7 +174,7 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 			int count = proc->seg_table->table[find].pages->size;
 			
 			   proc->seg_table->table[find].pages->table[count].v_index = second_lv;
-			   proc->seg_table->table[find].pages->table[count].p_index = page_index[j];		
+			   proc->seg_table->table[find].pages->table[count].p_index = physical_indexs[j];		
 			   count++;			
 			proc->seg_table->table[find].pages->size = count;
 			
@@ -195,31 +202,52 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 	}
 	
 	int find = physical_addr >> 10;
-	int i, j, count = 0;	
+	int i, j, indexs_to_free = 0;	
 	
 	while(find != -1){
 		_mem_stat[find].proc = 0;
 		find = _mem_stat[find].next;
-		count++;			
+		indexs_to_free++;			
 	}
 	
 	/* The first layer index */
 	addr_t first_lv = get_first_lv(address);
 	/* The second layer index */
 	addr_t second_lv = get_second_lv(address);
-		
-	for(i=0; i < proc->seg_table->size; i++){
-	       if(first_lv == proc->seg_table->table[i].v_index){
-		int table_size = proc->seg_table->table[i].pages->size;
-	       for(j = 0; j < table_size; j++){
-		 if(proc->seg_table->table[i].pages->table[j].v_index == second_lv)
-		 { memcpy((void*)&proc->seg_table->table[i].pages->table[j],
-		(const void*)&proc->seg_table->table[i].pages->table[j+count],
-		(void*)&proc->seg_table->table[i].pages->table[table_size] -
-		(void*)&proc->seg_table->table[i].pages->table[j + count]);
-		proc->seg_table->table[i].pages->size -= count; break; }
-	       }break;
-	       }
+	
+	struct seg_table_t* seg_table = proc->seg_table;
+	struct page_table_t* page_table;
+	//loop for each page_table for seg_table
+	for(i=0; i < seg_table->size; i++){
+	    if(first_lv == seg_table->table[i].v_index){
+			page_table = seg_table->table[i].pages;
+			//loop for each entry in page_table
+			for(j = 0; j < page_table->size; j++){
+				if(page_table->table[j].v_index == second_lv) { 
+					//if top is larger than size, there are indexs to be freed from the next table
+					while (indexs_to_free > 0) {
+						int top = j + indexs_to_free;
+						if (top >= page_table->size) {
+							int already_free = page_table->size - j;
+							page_table->size = j;
+							indexs_to_free -= already_free;
+						} else {
+							void* src_addr = &page_table->table[top];
+							void* dest_addr = &page_table->table[j];
+							int n_bytes_to_copy = ((void*)&page_table->table[page_table->size]) - src_addr;
+							memcpy(dest_addr,src_addr,n_bytes_to_copy);
+							page_table->size -= indexs_to_free;
+							indexs_to_free = 0;
+						}
+						page_table = seg_table->table[++i].pages;
+						j = 0;
+
+					}
+					break;
+				}
+			}
+			break;
+	    }
 	}
 	pthread_mutex_unlock(&mem_lock);
 	return 0;

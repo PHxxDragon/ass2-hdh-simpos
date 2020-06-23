@@ -47,7 +47,7 @@ struct pcb_t * get_proc(void) {
 	// if [ready_queue] is still empty,
 	// then return NULL,
 	// else return highest priority one
-	if (empty(&ready_queue)
+	if (empty(&ready_queue))
 		proc = NULL;
 	else
 		proc = dequeue(&ready_queue);
