@@ -37,7 +37,12 @@ static addr_t get_second_lv(addr_t addr) {
 	return (addr >> OFFSET_LEN) - (get_first_lv(addr) << PAGE_LEN);
 }
 
-/* Search for page table table from the a segment table */
+/*
+	PREREQUISITE: [seg_table] is NOT NULL
+	DO: Search for page table from the a segment table
+	RETURN: if found, found page_table
+			else NULL
+*/
 static struct page_table_t * get_page_table(
 		addr_t index, 	// Segment level index
 		struct seg_table_t * seg_table) { // first level table
@@ -52,7 +57,6 @@ static struct page_table_t * get_page_table(
 	int i;
 	for (i = 0; i < seg_table->size; i++) {
 		// Enter your code here
-		
 		if(seg_table->table[i].v_index == index) 
 			return seg_table->table[i].pages;
 	}
@@ -89,8 +93,7 @@ static int translate(
 			 * to [p_index] field of page_table->table[i] to 
 			 * produce the correct physical address and save it to
 			 * [*physical_addr]  */
-			
-			*physical_addr = (page_table->table[i].p_index << 10) + offset;
+			*physical_addr = (page_table->table[i].p_index << OFFSET_LEN) + offset;
 			return 1;
 		}
 	}
@@ -201,7 +204,7 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 		return -1;
 	}
 	
-	int find = physical_addr >> 10;
+	int find = physical_addr >> OFFSET_LEN;
 	int i, j, indexs_to_free = 0;	
 
 	pthread_mutex_lock(&mem_lock);
