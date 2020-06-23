@@ -203,7 +203,7 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 		return -1;
 	}
 	
-	int find = physical_addr >> 10;
+	int find = physical_addr >> OFFSET_LEN;
 	int i, j, indexs_to_free = 0;	
 	
 	while(find != -1){
