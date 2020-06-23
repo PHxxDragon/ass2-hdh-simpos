@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/../${fileBasenameNoExtension}",
-            "args": ["os_0"],
+            "args": ["input/proc/m1"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

@@ -1,4 +1,3 @@
-
 #include "mem.h"
 #include "stdlib.h"
 #include "string.h"
@@ -148,7 +147,7 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 		 * 	  to ensure accesses to allocated memory slot is
 		 * 	  valid. */
 		if(ret_mem == PAGE_SIZE) proc->seg_table->size = 0;
-		int j, k, find = -1;
+		int j, k;
 		for( j = 0; j < num_pages; j++){
 			_mem_stat[physical_indexs[j]].proc = proc->pid;
 			_mem_stat[physical_indexs[j]].index = j;
@@ -159,7 +158,7 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 			addr_t first_lv = get_first_lv(ret_mem + j * PAGE_SIZE);
 			/* The second layer index */
 			addr_t second_lv = get_second_lv(ret_mem + j * PAGE_SIZE);		
-			
+			int find = -1;
 			for(k = 0; k < proc->seg_table->size; k++){
 	           	    if(first_lv == proc->seg_table->table[k].v_index)
 					{find = k; break;}			
@@ -194,10 +193,10 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 	 * 	  the process [proc].
 	 * 	- Remember to use lock to protect the memory from other
 	 * 	  processes.  */
-
 	pthread_mutex_lock(&mem_lock);
 	addr_t physical_addr;
-	if (!translate(address, &physical_addr, proc)) {		
+	if (!translate(address, &physical_addr, proc)) {	
+		pthread_mutex_unlock(&mem_lock);	
 		return -1;
 	}
 	
@@ -217,7 +216,7 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 	
 	struct seg_table_t* seg_table = proc->seg_table;
 	struct page_table_t* page_table;
-	//loop for each page_table for seg_table
+	//loop for each page_table in seg_table
 	for(i=0; i < seg_table->size; i++){
 	    if(first_lv == seg_table->table[i].v_index){
 			page_table = seg_table->table[i].pages;
@@ -231,6 +230,14 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 							int already_free = page_table->size - j;
 							page_table->size = j;
 							indexs_to_free -= already_free;
+							if (page_table->size == 0) {
+								void* src_addr = &seg_table->table[i + 1];
+								void* dest_addr = &seg_table->table[i];
+								int n_bytes_to_copy = ((void*)&seg_table->table[seg_table->size]) - src_addr;
+								memcpy(dest_addr, src_addr, n_bytes_to_copy);
+								seg_table->size -= 1;
+								--i;
+							}
 						} else {
 							void* src_addr = &page_table->table[top];
 							void* dest_addr = &page_table->table[j];
